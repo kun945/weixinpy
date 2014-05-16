@@ -233,11 +233,12 @@ class WeiXinClient(object):
         expires_key = 'expires_%s' %(self.app_id)
         access_token = self.mc.get(token_key)
         expires = self.mc.get(expires_key)
-        if access_token == None or expires == None or int(expires) < int(time.time()):
+        if access_token == None or expires == None or \
+                int(expires) < int(time.time()):
             rjson =_http_call(self.api_url + 'token', _HTTP_GET, \
-                None, grant_type='client_credential', \
-                appid=self.app_id, secret=self.app_secret)
-            self.access_token = rjson['access_token']
+                None, grant_type = 'client_credential', \
+                appid = self.app_id, secret = self.app_secret)
+            self.access_token = str(rjson['access_token'])
             self.expires = int(time.time()) + int(rjson['expires_in'])
             self.mc.set(token_key, self.access_token, \
                     time = self.expires - int(time.time()))
@@ -248,21 +249,21 @@ class WeiXinClient(object):
         else:
             self.access_token = str(access_token)
             self.expires = int(expires)
-        return True
 
     def del_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
         self.access_token = None 
         self.expires = 0
-        self.mc.delete(token_key)
-        self.mc.delete(expires_key)
-        return True
+        if mc.fc:
+            pass
+        else:
+            self.mc.delete(token_key)
+            self.mc.delete(expires_key)
 
     def set_access_token(self, token, expires):
         self.access_token = token
         self.expires = expires
-        return True
 
     def is_expires(self):
         return not self.access_token or time.time() > self.expires
