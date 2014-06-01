@@ -8,7 +8,7 @@ if __name__ == '__main__':
     #"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=APPID&secret=APPSECRET"
     wc.request_access_token()
 
-    data = '{"touser":"obMnLt3bf7t65jyEsa7vOtXphdu4", "msgtype":"text", "text":{ "content":"今天不洗澡"}}'
+    data = '{"touser":"obMnLt3bf7t65jyEsa7vOtXphdu4", "msgtype":"text", "text":{ "content":"hello!"}}'
     #data = '{"touser":"obMnLt9Qx5ZfPdElO3DQblM7ksl0", "msgtype":"image", ' \
     #    '"image":{ "media_id":"OaPSe4DP-HF4s_ABWHEVDgMKOPCUoViID8x-yPUvwCfqTEA0whZOza4hGODiHs93"}}'
     key = '{"button":[{"type":"click","name":"test","key":"V1001_TEST"}]}'
@@ -37,4 +37,4 @@ if __name__ == '__main__':
     #"https://api.weixin.qq.com/cgi-bin/menu/get?access_token=ACCESS_TOKEN"
     print wc.menu.get._get()
     #"http://file.api.weixin.qq.com/cgi-bin/media/get?access_token=ACCESS_TOKEN&media_id=MEDIA_ID"
-    print wc.media.get.file(media_id='OaPSe4DP-HF4s_ABWHEVDgMKOPCUoViID8x-yPUvwCfqTEA0whZOza4hGODiHs93')
+    print wc.media.get.file(media_id='OaPSe4DP-HF4s_ABWHEVDgMKOPCUoViID8x-yPUvwCfqTEA0whZOza4hGODiHs93', base_path='/home/ubuntu/Pictures')
