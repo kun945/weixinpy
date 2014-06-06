@@ -226,7 +226,7 @@ class WeiXinClient(object):
     >>> fc = False
     'use memcache save access_token, otherwise use filecache'
     '''
-    def __init__(self, appID, appsecret, fc = False):
+    def __init__(self, appID, appsecret, fc = False, path = '.'):
         self.api_url = 'https://api.weixin.qq.com/cgi-bin/'
         self.app_id = appID
         self.app_secret = appsecret
@@ -236,7 +236,7 @@ class WeiXinClient(object):
         if not self.fc:
             self.mc = memcache.Client(['127.0.0.1:11211'], debug = 0)
         else:
-            self.mc = filecache('./access_token', True)
+            self.mc = filecache('%s/access_token' %(path), True)
 
     def request_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
