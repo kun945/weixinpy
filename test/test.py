@@ -4,7 +4,7 @@
 from weixin import WeiXinClient
 
 if __name__ == '__main__':
-    wc = WeiXinClient('your_appid', 'your_secret', fc = True)
+    wc = WeiXinClient('your_appid', 'your_secret', fc = True, path='/tmp')
     #"https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=APPID&secret=APPSECRET"
     wc.request_access_token()
 

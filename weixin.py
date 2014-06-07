@@ -224,9 +224,9 @@ class WeiXinClient(object):
     API clinet using synchronized invocation.
 
     >>> fc = False
-    'use memcache save access_token, otherwise use filecache'
+    'use memcache save access_token, otherwise use filecache, path=[file_path | ip_addr]'
     '''
-    def __init__(self, appID, appsecret, fc = False, path = '.'):
+    def __init__(self, appID, appsecret, fc = False, path = '127.0.0.1:11211'):
         self.api_url = 'https://api.weixin.qq.com/cgi-bin/'
         self.app_id = appID
         self.app_secret = appsecret
@@ -234,7 +234,7 @@ class WeiXinClient(object):
         self.expires = 0
         self.fc = fc
         if not self.fc:
-            self.mc = memcache.Client(['127.0.0.1:11211'], debug = 0)
+            self.mc = memcache.Client([path], debug = 0)
         else:
             self.mc = filecache('%s/access_token' %(path), True)
 
