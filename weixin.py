@@ -233,10 +233,12 @@ class WeiXinClient(object):
         self.access_token = None
         self.expires = 0
         self.fc = fc
+        self.file_cache = None
         if not self.fc:
             self.mc = memcache.Client([path], debug = 0)
         else:
-            self.mc = filecache('%s/access_token' %(path), True)
+            self.file_cache = '%s/access_token' %(path)
+            self.mc = filecache(self.file_cache, True)
 
     def request_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
@@ -261,15 +263,20 @@ class WeiXinClient(object):
             self.expires = int(expires)
 
     def del_access_token(self):
+        import os
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
         self.access_token = None 
         self.expires = 0
-        if mc.fc:
-            pass
+        if self.fc:
+            os.remove(self.file_cache)
         else:
             self.mc.delete(token_key)
             self.mc.delete(expires_key)
+
+    def refurbish_access_token(self):
+        self.del_access_token()
+        self.request_access_token()
 
     def set_access_token(self, token, expires):
         self.access_token = token
