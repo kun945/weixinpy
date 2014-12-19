@@ -18,6 +18,7 @@ try:
 except Exception, e:
     print '\033[95mWrining: %s. use local filecache.\033[0m' %e
 
+
 class APIError(StandardError):
     '''
     raise APIError if reciving json message indicating failure.
@@ -28,7 +29,18 @@ class APIError(StandardError):
         StandardError.__init__(self, error_msg)
 
     def __str__(self):
-        return 'APIError: %s:%s' %(self.error_code, self.error_msg)
+        return '%s:%s' %(self.error_code, self.error_msg)
+
+
+class AccessTokenError(APIError):
+    '''
+    raise AccessTokenError if reciving json message indicating failure.
+    '''
+    def __init__(self, error_code, error_msg):
+        APIError.__init__(self, error_code, error_msg)
+
+    def __str__(self):
+        return APIError.__str__(self)
 
 
 class JsonDict(dict):
@@ -126,7 +138,8 @@ def _http_call(the_url, method, token,  **kw):
     if token == None:
         http_url = '%s?%s' %(the_url, params)
     else:
-        the_url = the_url + '?access_token=' + token
+        #the_url = the_url + '?access_token=' + token
+        the_url = '%s?access_token=%s' %(the_url, token)
         http_url = '%s&%s' %(the_url, params) if (method == _HTTP_GET or method == _HTTP_FILE) else the_url
     http_body = str(body) if (method == _HTTP_POST) else body
     req = urllib2.Request(http_url, data = http_body)
@@ -148,7 +161,7 @@ def _http_call(the_url, method, token,  **kw):
             else:
                 raise e
             try:
-                print '%s/%s' %(base_path, filename)
+                #print '%s/%s' %(base_path, filename)
                 fd = open('%s/%s' %(base_path, filename), 'wb')
                 fd.write(body)
             except Exception, e:
@@ -156,6 +169,8 @@ def _http_call(the_url, method, token,  **kw):
             fd.close()
             return _parse_json('{"path":"%s/%s"}' %(base_path, filename))
         if hasattr(rjson, 'errcode') and rjson['errcode'] != 0:
+            if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
+                raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
             raise APIError(str(rjson['errcode']), rjson['errmsg'])
         return rjson
     except urllib2.HTTPError, e:
@@ -164,6 +179,8 @@ def _http_call(the_url, method, token,  **kw):
         except:
             rjson = None
             if hasattr(rjson, 'errcode'):
+                if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
+                    raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
                 raise APIError(rjson['errcode'], rjson['errmsg'])
         raise e
 
@@ -179,7 +196,7 @@ class filecache:
         try:
             fd = open(self.path, 'rb')
         except Exception, e:
-            print 'filecache open error:', e
+            #print 'filecache open error:', e
             if not create:
                 return None
             else:
@@ -283,7 +300,7 @@ class WeiXinClient(object):
         self.expires = expires
 
     def is_expires(self):
-        return not self.access_token or time.time() > self.expires
+        return not self.access_token or int(time.time()) >= (self.expires - 10)
 
     def __getattr__(self, attr):
         return _Callable(self, attr)
