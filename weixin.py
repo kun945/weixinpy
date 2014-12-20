@@ -79,15 +79,15 @@ def _encode_params(**kw):
     '''
     args = []
     body = None
-    base_path = None
+    path = None
     for k, v in kw.iteritems():
         if k == 'body':
             body = v
             continue
         if k in ['pic']:
             continue
-        if k  == 'base_path':
-            base_path = v
+        if k  == 'path':
+            path = v
             continue
         if isinstance(v, basestring):
             qv = v.encode('utf-8') if isinstance(v, unicode) else v
@@ -98,7 +98,7 @@ def _encode_params(**kw):
             else:
                 qv = str(v)
                 args.append('%s=%s' %(k, urllib.quote(qv)))
-    return ('&'.join(args), body, base_path)
+    return ('&'.join(args), body, path)
 
 
 def _encode_multipart(**kw):
@@ -130,8 +130,8 @@ def _http_call(the_url, method, token,  **kw):
     params = None
     boundary = None
     body = None
-    base_path = None
-    (params, body, base_path) = _encode_params(**kw)
+    path = None
+    (params, body, path) = _encode_params(**kw)
     if method == _HTTP_FILE:
         the_url = the_url.replace('https://api.', 'http://file.api.')
         body, boundary = _encode_multipart(**kw)  
@@ -153,21 +153,18 @@ def _http_call(the_url, method, token,  **kw):
         except Exception, e:
             if resp.getcode() != 200:
                 raise e
-            filename = None
             if resp.headers['Content-Type'] == 'image/jpeg':
-                filename = 'WX_%d.jpg' %(int(time.time()))
-                if base_path == None:
-                    base_path = './'
+                if path == None:
+                    path = './WX_%d.jpg' %(int(time.time()))
             else:
                 raise e
             try:
-                #print '%s/%s' %(base_path, filename)
-                fd = open('%s/%s' %(base_path, filename), 'wb')
+                fd = open(path, 'wb')
                 fd.write(body)
             except Exception, e:
                 raise e
             fd.close()
-            return _parse_json('{"path":"%s/%s"}' %(base_path, filename))
+            return _parse_json('{"path":"%s"}' %(path))
         if hasattr(rjson, 'errcode') and rjson['errcode'] != 0:
             if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
                 raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
