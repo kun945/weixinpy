@@ -1,14 +1,6 @@
 ## Usage
 
-Reference to 'test/test.py'.
-
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-from weixin import WeiXinClient
-from weixin import APIError
-from weixin import AccessTokenError
-
+from weixin import WeixinClient, APIError, AccessTokenError
 
 if __name__ == '__main__':
     # 如果你有使用python-memcache 可以使用fc=False，path='ip:port'来启用memcache。
