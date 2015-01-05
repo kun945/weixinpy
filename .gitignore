@@ -1,7 +1,5 @@
 build
-my.py
 *.pyc
 wxtest.py
-test.py
-test
+newtest.py
 access_token

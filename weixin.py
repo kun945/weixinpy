@@ -148,6 +148,7 @@ def _http_call(the_url, method, token,  **kw):
     try:
         resp = urllib2.urlopen(req, timeout = 5)
         body = resp.read()
+        resp.close()
         try:
             rjson = _parse_json(body)
         except Exception, e:
