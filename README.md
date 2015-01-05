@@ -1,12 +1,10 @@
 ## Usage
 
-from weixin import WeixinClient, APIError, AccessTokenError
+    from weixin import WeixinClient, APIError, AccessTokenError
 
-if __name__ == '__main__':
     # 如果你有使用python-memcache 可以使用fc=False，path='ip:port'来启用memcache。
     # 如果你想问memcache能不能吃，还是老老实实用fc=True吧，path用来设置你保存临时文件的路径。
-    #wc = WeiXinClient('您的AppID', '您的AppSecret', fc=True, path='/tmp')
-    wc = WeiXinClient('wx1238b3917c06a851', '7f941e44d8e83add32401efe79e51cd3', fc=False, path='192.168.1.12:11211')
+    wc = WeiXinClient('您的AppID', '您的AppSecret', fc=True, path='/tmp')
     # 使用其他api前必须先获取token
     wc.request_access_token()
 
