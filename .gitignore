@@ -3,3 +3,4 @@ build
 wxtest.py
 newtest.py
 access_token
+Makefile

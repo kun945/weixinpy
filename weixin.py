@@ -51,7 +51,7 @@ class JsonDict(dict):
             return self[attr]
         except KeyError:
             raise AttributeError(r"'JsonDict' object has no attribute '%s'" %(attr))
-        
+
         def __setattr__(self, attr, value):
             self[attr] = value
 
@@ -118,6 +118,8 @@ def _encode_multipart(**kw):
             data.append('Content-Type: image/jpeg')
             data.append('Content-Transfer-Encoding: binary\r\n')
             data.append(content)
+            if hasattr(v, 'close'):
+                v.close()
             break
     data.append('--%s--\r\n' % boundary)
     return '\r\n'.join(data), boundary
@@ -134,7 +136,7 @@ def _http_call(the_url, method, token,  **kw):
     (params, body, path) = _encode_params(**kw)
     if method == _HTTP_FILE:
         the_url = the_url.replace('https://api.', 'http://file.api.')
-        body, boundary = _encode_multipart(**kw)  
+        body, boundary = _encode_multipart(**kw)
     if token == None:
         http_url = '%s?%s' %(the_url, params)
     else:
@@ -281,7 +283,7 @@ class WeiXinClient(object):
         import os
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
-        self.access_token = None 
+        self.access_token = None
         self.expires = 0
         if self.fc:
             os.remove(self.file_cache)
