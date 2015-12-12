@@ -63,7 +63,10 @@ API格式：http://file.api.weixin.qq.com/cgi-bin/media/get?access_token=ACCESS_
 ```
 # 这里演示了如何捕获token失效的异常，产生这个异常就要更新token了
 try:
-    print wc.media.get.file(media_id=rjson.media_id, path='./test2.png')
+    rm = wc.media.get.file(media_id=rjson.media_id)
+    print rm
+    open('./test.png', 'rb').write(rm.read())
+    rm.close()
 except AccessTokenError, e:
     print e
     #更新token

@@ -6,12 +6,21 @@ import json
 import urllib
 import urllib2
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __author__ = 'Liang Cha (ckmx945@gmail.com)'
+
 
 '''
 Python client SDK for Micro Message Public Platform API.
 '''
+
+
+(_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
+
+_CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr')
+
+_CONTENT_TYPE_JSON= ('application/json; encoding=utf-8', 'text/plain')
+
 
 try:
     import memcache
@@ -44,7 +53,7 @@ class AccessTokenError(APIError):
 
 
 class JsonDict(dict):
-    ' general json object that allows attributes to bound to and also behaves like a dict '
+    ''' general json object that allows attributes to bound to and also behaves like a dict '''
 
     def __getattr__(self, attr):
         try:
@@ -86,9 +95,6 @@ def _encode_params(**kw):
             continue
         if k in ['pic']:
             continue
-        if k  == 'path':
-            path = v
-            continue
         if isinstance(v, basestring):
             qv = v.encode('utf-8') if isinstance(v, unicode) else v
             args.append('%s=%s' %(k, urllib.quote(qv)))
@@ -98,7 +104,7 @@ def _encode_params(**kw):
             else:
                 qv = str(v)
                 args.append('%s=%s' %(k, urllib.quote(qv)))
-    return ('&'.join(args), body, path)
+    return ('&'.join(args), body)
 
 
 def _encode_multipart(**kw):
@@ -125,6 +131,49 @@ def _encode_multipart(**kw):
     return '\r\n'.join(data), boundary
 
 
+class WeiXinResponse(object):
+    '''To deal with response of the base class'''
+
+    def __init__(self, resp):
+        self._resp = resp
+
+    def read(self):
+        return self._resp.read()
+
+    def close(self):
+        self._resp.close()
+
+    def __str__(self):
+        return self._resp.headers['Content-Type']
+
+
+class WeiXinJson(WeiXinResponse):
+    '''JSON'''
+
+    def __init__(self, resp):
+        WeiXinResponse.__init__(self, resp)
+
+    def read(self):
+        '''Check api or token error and return json'''
+        rjson = _parse_json(self._resp.read())
+        self._resp.close()
+        if hasattr(rjson, 'errcode') and rjson['errcode'] != 0:
+            if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
+                raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
+            raise APIError(str(rjson['errcode']), rjson['errmsg'])
+        return rjson
+
+    def close(self):
+        pass
+
+
+class WeiXinMedia(WeiXinResponse):
+    '''Audio and Image'''
+
+    def __init__(self, resp):
+        WeiXinResponse.__init__(self, resp)
+
+
 def _http_call(the_url, method, token,  **kw):
     '''
     send an http request and return a json object  if no error occurred.
@@ -132,15 +181,13 @@ def _http_call(the_url, method, token,  **kw):
     params = None
     boundary = None
     body = None
-    path = None
-    (params, body, path) = _encode_params(**kw)
+    (params, body) = _encode_params(**kw)
     if method == _HTTP_FILE:
         the_url = the_url.replace('https://api.', 'http://file.api.')
         body, boundary = _encode_multipart(**kw)
     if token == None:
         http_url = '%s?%s' %(the_url, params)
     else:
-        #the_url = the_url + '?access_token=' + token
         the_url = '%s?access_token=%s' %(the_url, token)
         http_url = '%s&%s' %(the_url, params) if (method == _HTTP_GET or method == _HTTP_FILE) else the_url
     http_body = str(body) if (method == _HTTP_POST) else body
@@ -149,40 +196,25 @@ def _http_call(the_url, method, token,  **kw):
         req.add_header('Content-Type', 'multipart/form-data; boundary=%s' % boundary)
     try:
         resp = urllib2.urlopen(req, timeout = 5)
-        body = resp.read()
-        resp.close()
-        try:
-            rjson = _parse_json(body)
-        except Exception, e:
-            if resp.getcode() != 200:
-                raise e
-            if resp.headers['Content-Type'] == 'image/jpeg':
-                if path == None:
-                    path = './WX_%d.jpg' %(int(time.time()))
-            else:
-                raise e
-            try:
-                fd = open(path, 'wb')
-                fd.write(body)
-            except Exception, e:
-                raise e
-            fd.close()
-            return _parse_json('{"path":"%s"}' %(path))
-        if hasattr(rjson, 'errcode') and rjson['errcode'] != 0:
-            if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
-                raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
-            raise APIError(str(rjson['errcode']), rjson['errmsg'])
-        return rjson
     except urllib2.HTTPError, e:
-        try:
-            rjson = _parse_json(e.read())
-        except:
-            rjson = None
-            if hasattr(rjson, 'errcode'):
-                if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
-                    raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
-                raise APIError(rjson['errcode'], rjson['errmsg'])
+        if resp.headers['Content-Type'] == _CONTENT_TYPE_JSON:
+            json = WeiXinJson(resp)
+            return json.read()
+    except Exception, e:
         raise e
+    try:
+        content_type = resp.headers['Content-Type']
+    except KeyError, e:
+        content_type = '??'
+        resp.headers['Content_Type'] = content_type
+    #print content_type
+    if content_type in _CONTENT_TYPE_MEDIA:
+        return WeiXinMedia(resp)
+    elif content_type in _CONTENT_TYPE_JSON:
+        json = WeiXinJson(resp)
+        return json.read()
+    else:
+        return WeiXinResponse(resp)
 
 
 class filecache:
