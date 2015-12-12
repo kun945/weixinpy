@@ -37,4 +37,4 @@ if __name__ == '__main__':
     #"https://api.weixin.qq.com/cgi-bin/menu/get?access_token=ACCESS_TOKEN"
     print wc.menu.get._get()
     #"http://file.api.weixin.qq.com/cgi-bin/media/get?access_token=ACCESS_TOKEN&media_id=MEDIA_ID"
-    print wc.media.get.file(media_id='OaPSe4DP-HF4s_ABWHEVDgMKOPCUoViID8x-yPUvwCfqTEA0whZOza4hGODiHs93', path='/home/ubuntu/Pictures/test.jpg')
+    print wc.media.get.file(media_id='OaPSe4DP-HF4s_ABWHEVDgMKOPCUoViID8x-yPUvwCfqTEA0whZOza4hGODiHs93')
