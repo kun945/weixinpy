@@ -6,7 +6,7 @@ import json
 import urllib
 import urllib2
 
-__version__ = '0.1.1'
+__version__ = '0.2.1'
 __author__ = 'Liang Cha (ckmx945@gmail.com)'
 
 
@@ -226,22 +226,29 @@ class FileCache(object):
         self.path = path
         try:
             fd = open(self.path, 'rb'); data = fd.read(); fd.close()
+            self.dict_data = json.loads(data)
         except Exception, e:
-            data = '{}'
-        self.dict_data = json.loads(data)
+            self.dict_data = dict()
 
     def get(self, key):
-        return self.dict_data[key] if self.dict_data.has_key(key) else None
+        return self.dict_data.get(key)
 
     def set(self, key, value, time = 0):
-        self.dict_data[key] = value if self.dict_data.has_key(key) else \
-            self.dict_data.update({key:value})
+        self.dict_data[key] = value
 
     def delete(self, key, time = 0):
         if self.dict_data.has_key(key): del self.dict_data[key]
 
     def save(self):
-        fd = open(self.path, 'wb'); fd.write(repr(self.dict_data)); fd.close()
+        data = (repr(self.dict_data)).replace('\'', '\"') #json must to use double quotation marks
+        fd = open(self.path, 'wb'); fd.write(data); fd.close()
+
+    def remove(self):
+        import os
+        try:
+            os.remove(self.path)
+        except Exception, e:
+            pass
 
     def __str__(self):
         return repr(self.dict_data)
@@ -261,28 +268,25 @@ class WeiXinClient(object):
         self.access_token = None
         self.expires = 0
         self.fc = fc
-        self.file_cache = None
         if not self.fc:
             self.mc = memcache.Client([path], debug = 0)
         else:
-            self.file_cache = '%s/access_token' %(path)
-            self.mc = FileCache(self.file_cache, True)
+            self.mc = FileCache('%s/access_token' %(path), True)
 
     def request_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
         access_token = self.mc.get(token_key)
         expires = self.mc.get(expires_key)
-        if access_token == None or expires == None or \
-                int(expires) < int(time.time()):
-            rjson =_http_call(self.api_url + 'token', _HTTP_GET, \
-                None, grant_type = 'client_credential', \
-                appid = self.app_id, secret = self.app_secret)
-            self.access_token = str(rjson['access_token'])
-            self.expires = int(time.time()) + int(rjson['expires_in'])
-            self.mc.set(token_key, self.access_token, \
+        if not access_token or not expires or int(expires) < int(time.time()):
+            rjson =_http_call(self.api_url + 'token', _HTTP_GET,
+                    None, grant_type = 'client_credential',
+                    appid = self.app_id, secret = self.app_secret)
+            self.access_token = str(rjson.access_token)
+            self.expires = int(time.time()) + int(rjson.expires_in)
+            self.mc.set(token_key, self.access_token,
                     time = self.expires - int(time.time()))
-            self.mc.set(expires_key, str(self.expires), \
+            self.mc.set(expires_key, str(self.expires),
                     time = self.expires - int(time.time()))
             if self.fc: self.mc.save()
         else:
@@ -290,14 +294,13 @@ class WeiXinClient(object):
             self.expires = int(expires)
 
     def del_access_token(self):
-        import os
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
         self.access_token = None
         self.expires = 0
         self.mc.delete(token_key)
         self.mc.delete(expires_key)
-        if self.fc: os.remove(self.file_cache)
+        if self.fc: mc.remove()
 
     def refurbish_access_token(self):
         self.del_access_token()
