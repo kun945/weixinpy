@@ -17,7 +17,7 @@ Python client SDK for Micro Message Public Platform API.
 
 (_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
 
-_CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr')
+_CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr', 'video/mpeg4')
 
 _CONTENT_TYPE_JSON= ('application/json; encoding=utf-8', 'text/plain')
 
@@ -25,7 +25,7 @@ _CONTENT_TYPE_JSON= ('application/json; encoding=utf-8', 'text/plain')
 try:
     import memcache
 except Exception, e:
-    print '\033[95mWrining: %s. use local filecache.\033[0m' %e
+    print '\033[95mWrining: %s. use local FileCache.\033[0m' %e
 
 
 class APIError(StandardError):
@@ -195,7 +195,7 @@ def _http_call(the_url, method, token,  **kw):
     if boundary != None:
         req.add_header('Content-Type', 'multipart/form-data; boundary=%s' % boundary)
     try:
-        resp = urllib2.urlopen(req, timeout = 5)
+        resp = urllib2.urlopen(req, timeout = 8)
     except urllib2.HTTPError, e:
         if resp.headers['Content-Type'] == _CONTENT_TYPE_JSON:
             json = WeiXinJson(resp)
@@ -217,55 +217,34 @@ def _http_call(the_url, method, token,  **kw):
         return WeiXinResponse(resp)
 
 
-class filecache:
+class FileCache(object):
     '''
     the information is temporarily saved to the file.
     '''
+
     def __init__(self, path, create = False):
         self.path = path
-        self.dict_data = None
-        fd = None
         try:
-            fd = open(self.path, 'rb')
+            fd = open(self.path, 'rb'); data = fd.read(); fd.close()
         except Exception, e:
-            #print 'filecache open error:', e
-            if not create:
-                return None
-            else:
-                fd = open(self.path, 'wb')
-                fd.close()
-                fd = open(self.path, 'rb')
-        data = fd.read()
-        if len(data) == 0:
             data = '{}'
-        self.dict_data = eval(data)
-        fd.close()
+        self.dict_data = json.loads(data)
 
     def get(self, key):
-        if self.dict_data.has_key(key):
-            return self.dict_data[key]
-        return None
+        return self.dict_data[key] if self.dict_data.has_key(key) else None
 
     def set(self, key, value, time = 0):
-        if self.dict_data.has_key(key):
-            self.dict_data[key] = value
-        else:
+        self.dict_data[key] = value if self.dict_data.has_key(key) else \
             self.dict_data.update({key:value})
 
     def delete(self, key, time = 0):
-        if self.dict_data.has_key(key):
-            del self.dict_data[key]
+        if self.dict_data.has_key(key): del self.dict_data[key]
 
     def save(self):
-        fd = open(self.path, 'wb')
-        fd.write(repr(self.dict_data))
-        fd.close()
+        fd = open(self.path, 'wb'); fd.write(repr(self.dict_data)); fd.close()
 
     def __str__(self):
-        data = []
-        for key in self.dict_data.keys():
-            data += ['"%s":"%s"' %(str(key), str(self.dict_data[key]))]
-        return '{%s}' %(', '.join(data))
+        return repr(self.dict_data)
 
 
 class WeiXinClient(object):
@@ -273,7 +252,7 @@ class WeiXinClient(object):
     API clinet using synchronized invocation.
 
     >>> fc = False
-    'use memcache save access_token, otherwise use filecache, path=[file_path | ip_addr]'
+    'use memcache save access_token, otherwise use FileCache, path=[file_path | ip_addr]'
     '''
     def __init__(self, appID, appsecret, fc = False, path = '127.0.0.1:11211'):
         self.api_url = 'https://api.weixin.qq.com/cgi-bin/'
@@ -287,7 +266,7 @@ class WeiXinClient(object):
             self.mc = memcache.Client([path], debug = 0)
         else:
             self.file_cache = '%s/access_token' %(path)
-            self.mc = filecache(self.file_cache, True)
+            self.mc = FileCache(self.file_cache, True)
 
     def request_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
@@ -305,8 +284,7 @@ class WeiXinClient(object):
                     time = self.expires - int(time.time()))
             self.mc.set(expires_key, str(self.expires), \
                     time = self.expires - int(time.time()))
-            if self.fc:
-                self.mc.save()
+            if self.fc: self.mc.save()
         else:
             self.access_token = str(access_token)
             self.expires = int(expires)
@@ -317,11 +295,9 @@ class WeiXinClient(object):
         expires_key = 'expires_%s' %(self.app_id)
         self.access_token = None
         self.expires = 0
-        if self.fc:
-            os.remove(self.file_cache)
-        else:
-            self.mc.delete(token_key)
-            self.mc.delete(expires_key)
+        self.mc.delete(token_key)
+        self.mc.delete(expires_key)
+        if self.fc: os.remove(self.file_cache)
 
     def refurbish_access_token(self):
         self.del_access_token()
