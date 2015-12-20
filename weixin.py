@@ -6,7 +6,7 @@ import json
 import urllib
 import urllib2
 
-__version__ = '0.2.1'
+__version__ = '0.4.9'
 __author__ = 'Liang Cha (ckmx945@gmail.com)'
 
 
@@ -15,17 +15,34 @@ Python client SDK for Micro Message Public Platform API.
 '''
 
 
-(_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
-
-_CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr', 'video/mpeg4')
-
-_CONTENT_TYPE_JSON= ('application/json; encoding=utf-8', 'text/plain')
-
-
 try:
     import memcache
 except Exception, e:
     print '\033[95mWrining: %s. use local FileCache.\033[0m' %e
+
+
+(_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
+
+_CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr', 'video/mpeg4')
+
+_CONTENT_TYPE_JSON= (
+    'application/json; encoding=utf-8',
+    'application/json',
+    'text/plain',
+    )
+
+_API_URLS = (
+    'https://api.weixin.qq.com/',
+    'https://api.weixin.qq.com/cgi-bin/',
+    )
+
+_OTHER_FEATURES = (
+    'semantic',         #微信智能接口
+    'shackearound',     #微信摇一摇周边
+    'sns',              #网页授权相关
+    'datacube',         #数据统计
+    'merchant',         #微信小店
+    )
 
 
 class APIError(StandardError):
@@ -38,7 +55,7 @@ class APIError(StandardError):
         StandardError.__init__(self, error_msg)
 
     def __str__(self):
-        return '%s:%s' %(self.error_code, self.error_msg)
+        return '%d:%s' %(self.error_code, self.error_msg)
 
 
 class AccessTokenError(APIError):
@@ -53,8 +70,9 @@ class AccessTokenError(APIError):
 
 
 class JsonDict(dict):
-    ''' general json object that allows attributes to bound to and also behaves like a dict '''
-
+    '''
+    general json object that allows attributes to bound to and also behaves like a dict
+    '''
     def __getattr__(self, attr):
         try:
             return self[attr]
@@ -74,9 +92,6 @@ def _parse_json(s):
             o[str(k)] = v
         return o
     return json.loads(s, object_hook = _obj_hook)
-
-
-(_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
 
 
 def _encode_params(**kw):
@@ -108,7 +123,9 @@ def _encode_params(**kw):
 
 
 def _encode_multipart(**kw):
-    ' build a multipart/form-data body with randomly generated boundary '
+    '''
+    build a multipart/form-data body with randomly generated boundary
+    '''
     boundary = '----------%s' % hex(int(time.time()) * 1000)
     data = []
     for k, v in kw.iteritems():
@@ -132,7 +149,7 @@ def _encode_multipart(**kw):
 
 
 class WeiXinResponse(object):
-    '''To deal with response of the base class'''
+    ''' To deal with response of the base class '''
 
     def __init__(self, resp):
         self._resp = resp
@@ -148,7 +165,7 @@ class WeiXinResponse(object):
 
 
 class WeiXinJson(WeiXinResponse):
-    '''JSON'''
+    ''' Json string '''
 
     def __init__(self, resp):
         WeiXinResponse.__init__(self, resp)
@@ -157,18 +174,19 @@ class WeiXinJson(WeiXinResponse):
         '''Check api or token error and return json'''
         rjson = _parse_json(self._resp.read())
         self._resp.close()
-        if hasattr(rjson, 'errcode') and rjson['errcode'] != 0:
-            if str(rjson['errcode']) in ('40001', '40014', '41001', '42001'):
-                raise AccessTokenError(str(rjson['errcode']), rjson['errmsg'])
-            raise APIError(str(rjson['errcode']), rjson['errmsg'])
+        if hasattr(rjson, 'errcode') and rjson.errcode != 0:
+            if rjson.errcode in (40001, 40014, 41001, 42001):
+                raise AccessTokenError(rjson.errcode, rjson.errmsg)
+            raise APIError(rjson.errcode, rjson.errmsg)
         return rjson
 
+    #response object close in read()
     def close(self):
         pass
 
 
 class WeiXinMedia(WeiXinResponse):
-    '''Audio and Image'''
+    ''' Audio, Image, Video etc... '''
 
     def __init__(self, resp):
         WeiXinResponse.__init__(self, resp)
@@ -222,7 +240,7 @@ class FileCache(object):
     the information is temporarily saved to the file.
     '''
 
-    def __init__(self, path, create = False):
+    def __init__(self, path):
         self.path = path
         try:
             fd = open(self.path, 'rb'); data = fd.read(); fd.close()
@@ -258,40 +276,36 @@ class WeiXinClient(object):
     '''
     API clinet using synchronized invocation.
 
-    >>> fc = False
+    >>> fc = True
     'use memcache save access_token, otherwise use FileCache, path=[file_path | ip_addr]'
     '''
-    def __init__(self, appID, appsecret, fc = False, path = '127.0.0.1:11211'):
-        self.api_url = 'https://api.weixin.qq.com/cgi-bin/'
+    def __init__(self, appID, appsecret, fc = True, path = '/tmp'):
+        self.api_url= ''
         self.app_id = appID
         self.app_secret = appsecret
         self.access_token = None
         self.expires = 0
         self.fc = fc
-        if not self.fc:
-            self.mc = memcache.Client([path], debug = 0)
-        else:
-            self.mc = FileCache('%s/access_token' %(path), True)
+        self.mc = FileCache('%s/access_token' %(path)) \
+                if fc else memcache.Client([path], debug=0)
 
     def request_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
         expires_key = 'expires_%s' %(self.app_id)
         access_token = self.mc.get(token_key)
         expires = self.mc.get(expires_key)
-        if not access_token or not expires or int(expires) < int(time.time()):
-            rjson =_http_call(self.api_url + 'token', _HTTP_GET,
+        if not access_token or not expires or expires < int(time.time()):
+            rjson =_http_call(_API_URLS[1] + 'token', _HTTP_GET,
                     None, grant_type = 'client_credential',
                     appid = self.app_id, secret = self.app_secret)
             self.access_token = str(rjson.access_token)
-            self.expires = int(time.time()) + int(rjson.expires_in)
-            self.mc.set(token_key, self.access_token,
-                    time = self.expires - int(time.time()))
-            self.mc.set(expires_key, str(self.expires),
-                    time = self.expires - int(time.time()))
+            self.expires = int(time.time()) + rjson.expires_in
+            self.mc.set(token_key, self.access_token, time = rjson.expires_in)
+            self.mc.set(expires_key, self.expires, time = rjson.expires_in)
             if self.fc: self.mc.save()
         else:
             self.access_token = str(access_token)
-            self.expires = int(expires)
+            self.expires = expires
 
     def del_access_token(self):
         token_key = 'access_token_%s' %(self.app_id)
@@ -300,7 +314,6 @@ class WeiXinClient(object):
         self.expires = 0
         self.mc.delete(token_key)
         self.mc.delete(expires_key)
-        if self.fc: mc.remove()
 
     def refurbish_access_token(self):
         self.del_access_token()
@@ -314,6 +327,7 @@ class WeiXinClient(object):
         return not self.access_token or int(time.time()) >= (self.expires - 10)
 
     def __getattr__(self, attr):
+        self.api_url = _API_URLS[0] if attr in _OTHER_FEATURES else _API_URLS[1]
         return _Callable(self, attr)
 
     def __str__(self):
@@ -359,7 +373,7 @@ class _Callable(object):
         return '_Callable (%s)' %(self._name)
 
 def test():
-    ' test the API '
+    ''' test the API '''
     pass
 
 if __name__ == '__main__':

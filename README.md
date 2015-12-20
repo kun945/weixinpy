@@ -2,6 +2,11 @@ weixinpy
 ===================
 这是一个python版本的腾讯微信公共平台的API的sdk。
 
+__version__ = '0.4.9'
+1.修复bug.
+2.默认采用FileCache方式保存access_token
+3.增加对“微信智能接口”、“微信摇一摇周边”、“网页授权”、“数据统计”、“微信小店”的支持。
+
 ----------
 
 Usage
@@ -9,9 +14,9 @@ Usage
 初始化过程：
 ```
 from weixin import WeixinClient, APIError, AccessTokenError
-# 如果你有使用python-memcache 可以使用fc=False，path='ip:port'来启用memcache。
-# 如果你想问memcache能不能吃，还是老老实实用fc=True吧，path用来设置你保存临时文件的路径。
-wc = WeiXinClient('您的AppID', '您的AppSecret', fc=True, path='/tmp')
+# 如果你有使用python-memcache 可以使用fc=False，path='ip:port'来启用memcache
+# 默认使用FileCache, 保存在/tmp/access_token, 可以通过path='path'来设置保存目录
+wc = WeiXinClient('您的AppID', '您的AppSecret')
 # 使用其他api前必须先获取token
 wc.request_access_token()
 ```
@@ -76,5 +81,12 @@ except AccessTokenError, e:
 if wc.is_expires():
     wc.refurbish_access_token()
 ```
+
+微信智能接口
+```
+q = '{"query":"查一下鹰潭的天气", "city":"鹰潭", "category":"weather", "appid":"%s"}' %(your_pid)
+print wc.semantic.semproxy.search.post(body=q)
+```
+
 Have Fun!
 
