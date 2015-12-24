@@ -6,7 +6,7 @@ import json
 import urllib
 import urllib2
 
-__version__ = '0.4.9'
+__version__ = '0.5.0'
 __author__ = 'Liang Cha (ckmx945@gmail.com)'
 
 
@@ -24,6 +24,8 @@ except Exception, e:
 (_HTTP_GET, _HTTP_POST, _HTTP_FILE) = range(3)
 
 _CONTENT_TYPE_MEDIA = ('image/jpeg', 'audio/amr', 'video/mpeg4')
+
+_MEIDA_TYPE = ('mpeg4', 'jpeg', 'jpg', 'gif', 'png', 'bmp', 'mp3', 'wav', 'wma', 'amr')
 
 _CONTENT_TYPE_JSON= (
     'application/json; encoding=utf-8',
@@ -49,6 +51,7 @@ class APIError(StandardError):
     '''
     raise APIError if reciving json message indicating failure.
     '''
+
     def __init__(self, error_code, error_msg):
         self.error_code = error_code
         self.error_msg = error_msg
@@ -62,6 +65,7 @@ class AccessTokenError(APIError):
     '''
     raise AccessTokenError if reciving json message indicating failure.
     '''
+
     def __init__(self, error_code, error_msg):
         APIError.__init__(self, error_code, error_msg)
 
@@ -73,6 +77,7 @@ class JsonDict(dict):
     '''
     general json object that allows attributes to bound to and also behaves like a dict
     '''
+
     def __getattr__(self, attr):
         try:
             return self[attr]
@@ -84,7 +89,7 @@ class JsonDict(dict):
 
 
 def _parse_json(s):
-    ' parse str into JsonDict '
+    ''' parse str into JsonDict '''
 
     def _obj_hook(pairs):
         o = JsonDict()
@@ -108,13 +113,13 @@ def _encode_params(**kw):
         if k == 'body':
             body = v
             continue
-        if k in ['pic']:
+        if k in _MEIDA_TYPE:
             continue
         if isinstance(v, basestring):
             qv = v.encode('utf-8') if isinstance(v, unicode) else v
             args.append('%s=%s' %(k, urllib.quote(qv)))
         else:
-            if v == None:
+            if v is None:
                 args.append('%s=' %(k))
             else:
                 qv = str(v)
@@ -126,25 +131,23 @@ def _encode_multipart(**kw):
     '''
     build a multipart/form-data body with randomly generated boundary
     '''
-    boundary = '----------%s' % hex(int(time.time()) * 1000)
     data = []
-    for k, v in kw.iteritems():
-        if hasattr(v, 'read'):
-            data.append('--%s' % boundary)
-            filename = getattr(v, 'name', '')
-            if filename == None or len(filename) == 0:
-                filename = '/tmp/test.jpg'
-            content = v.read()
-            data.append('Content-Disposition: form-data; name="%s"; filename="%s"' % (k, filename))
-            data.append('Content-Length: %d' % len(content))
-            #data.append('Content-Type: application/octet-stream')
-            data.append('Content-Type: image/jpeg')
-            data.append('Content-Transfer-Encoding: binary\r\n')
-            data.append(content)
-            if hasattr(v, 'close'):
-                v.close()
-            break
+    boundary = '----------%s' % hex(int(time.time()) * 1000)
+    media_key = [key for key in _MEIDA_TYPE if key in kw.keys()]
+    media_key = media_key[0] if media_key else 'null'
+    fd = kw.get(media_key)
+    media_type = kw.get('type') if kw.has_key('type') else 'null'
+    content = fd.read() if hasattr(fd, 'read') else 'null'
+    filename = getattr(fd, 'name', None)
+    if filename is None: filename = '/tmp/fake.%s' %(media_key)
+    data.append('--%s' % boundary)
+    data.append('Content-Disposition: form-data; name="%s"; filename="%s"' %(media_key, filename))
+    data.append('Content-Length: %d' % len(content))
+    data.append('Content-Type: %s/%s' %(media_type, media_key))
+    data.append('Content-Transfer-Encoding: binary\r\n')
+    data.append(content)
     data.append('--%s--\r\n' % boundary)
+    if hasattr(fd, 'close'): fd.close()
     return '\r\n'.join(data), boundary
 
 
@@ -196,9 +199,9 @@ def _http_call(the_url, method, token,  **kw):
     '''
     send an http request and return a json object  if no error occurred.
     '''
+    body = None
     params = None
     boundary = None
-    body = None
     (params, body) = _encode_params(**kw)
     if method == _HTTP_FILE:
         the_url = the_url.replace('https://api.', 'http://file.api.')
@@ -210,8 +213,7 @@ def _http_call(the_url, method, token,  **kw):
         http_url = '%s&%s' %(the_url, params) if (method == _HTTP_GET or method == _HTTP_FILE) else the_url
     http_body = str(body) if (method == _HTTP_POST) else body
     req = urllib2.Request(http_url, data = http_body)
-    if boundary != None:
-        req.add_header('Content-Type', 'multipart/form-data; boundary=%s' % boundary)
+    if boundary: req.add_header('Content-Type', 'multipart/form-data; boundary=%s' % boundary)
     try:
         resp = urllib2.urlopen(req, timeout = 8)
     except urllib2.HTTPError, e:
@@ -319,9 +321,15 @@ class WeiXinClient(object):
         self.del_access_token()
         self.request_access_token()
 
-    def set_access_token(self, token, expires):
+    def set_access_token(self, token, expires_in, persistence=False):
         self.access_token = token
-        self.expires = expires
+        self.expires = expires_in + int(time.time())
+        if persistence:
+            token_key = 'access_token_%s' %(self.app_id)
+            expires_key = 'expires_%s' %(self.app_id)
+            self.mc.set(token_key, token, time = expires_in)
+            self.mc.set(expires_key, self.expires, time = expires_in)
+            if self.fc: self.mc.save()
 
     def is_expires(self):
         return not self.access_token or int(time.time()) >= (self.expires - 10)
@@ -360,7 +368,7 @@ class _Callable(object):
         self._name = name
 
     def __getattr__(self, attr):
-        if attr == '_get':
+        if attr in ('dget', '_get'):
             return _Executable(self._client, _HTTP_GET, self._name)
         if attr == 'post':
             return _Executable(self._client, _HTTP_POST, self._name)
