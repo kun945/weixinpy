@@ -1,22 +1,22 @@
-#weixinpy
+# weixinpy
 ----
 这是一个简单的python版本的腾讯微信公共平台的sdk。<br>
 
-##更新日志
+## 更新日志
 ----
 
-###当前版本 version 0.5.0
+### 当前版本 version 0.5.0
 ----
 1、HTTP GET方法关键字由'_get'改为'dget'(原来的'_get'仍然可用)。<br>
 2、修改完善媒体文件的上传(支持"mpeg4/jpeg/jpg/png/gif/bmp/mp3/wma/wav/amr"), 具体看usage。<br>
 
-###version 0.4.9
+### version 0.4.9
 ----
 1、修复bug。<br>
 2、默认采用FileCache方式保存access_token。<br>
 3、增加对“微信智能接口”、“微信摇一摇周边”、“网页授权”、“数据统计”、“微信小店”的支持。<br>
 
-##Usage
+## Usage
 ----
 初始化过程：
 ```
